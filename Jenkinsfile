@@ -3,32 +3,35 @@ pipeline {
 
     stages {
 
-        stage('Clone Repository') {
-            steps {
-                git branch: 'main',
-                url: 'https://github.com/Mr-MachiNe11/my-app.git'
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
                 sh 'docker build -t myapp .'
             }
         }
 
-        stage('Stop Old Container') {
+        stage('Save Docker Image') {
             steps {
-                sh 'docker rm -f myapp-container || true'
+                sh 'docker save myapp | gzip > myapp.tar.gz'
             }
         }
 
-        stage('Run New Container') {
+        stage('Transfer Image to Production VM') {
+            steps {
+                sh 'scp myapp.tar.gz root@172.20.0.199:/root/'
+            }
+        }
+
+        stage('Deploy on Production VM') {
             steps {
                 sh '''
-                docker run -d \
-                --name myapp-container \
-                -p 3001:3000 \
-                myapp
+                ssh root@172.20.0.199 "
+                    docker load < /root/myapp.tar.gz &&
+                    docker rm -f myapp-container || true &&
+                    docker run -d \
+                    --name myapp-container \
+                    -p 3001:3000 \
+                    myapp
+                "
                 '''
             }
         }
