@@ -27,7 +27,7 @@ pipeline {
                 sh '''
                 docker run -d \
                 --name myapp-container \
-                -p 3000:3000 \
+                -p 3001:3000 \
                 myapp
                 '''
             }
