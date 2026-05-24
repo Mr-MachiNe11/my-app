@@ -7,6 +7,7 @@ pipeline {
         PROD_SERVER = "root@172.20.0.199"
         HOST_PORT = "3001"
         CONTAINER_PORT = "3000"
+        TAR_FILE = "myapp.tar.gz"
     }
 
     stages {
@@ -16,7 +17,7 @@ pipeline {
 
             steps {
                 sh 'docker build -t ${IMAGE_NAME} .'
-                sh 'docker save ${IMAGE_NAME} | gzip > ${IMAGE_NAME}.tar.gz'
+                sh 'docker save ${IMAGE_NAME} | gzip > ${TAR_FILE}'
             }
         }
 
@@ -24,7 +25,7 @@ pipeline {
             agent { label 'build-vm' }
 
             steps {
-                sh 'scp ${IMAGE_NAME}.tar.gz ${PROD_SERVER}:/root/'
+                sh 'scp ${TAR_FILE} ${PROD_SERVER}:/tmp/'
             }
         }
 
@@ -38,9 +39,9 @@ pipeline {
             steps {
                 sh """
                 ssh ${PROD_SERVER} '
-                    docker load < /tmp/${IMAGE_NAME}.tar.gz &&
-            	    docker rm -f ${CONTAINER_NAME} || true &&
-            	    docker run -d \
+                    docker load < /tmp/${TAR_FILE} &&
+                    docker rm -f ${CONTAINER_NAME} || true &&
+                    docker run -d \
                         --name ${CONTAINER_NAME} \
                         -p ${HOST_PORT}:${CONTAINER_PORT} \
                         ${IMAGE_NAME}
@@ -48,3 +49,5 @@ pipeline {
                 """
             }
         }
+    }
+}
