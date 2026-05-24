@@ -31,20 +31,20 @@ pipeline {
         stage('Deploy on Production VM') {
             agent { label 'prod-vm' }
 
-	    options {
-		skipDefaultCheckout()
-	    }
+            options {
+                skipDefaultCheckout()
+            }
 
             steps {
                 sh """
-                docker load < /root/${IMAGE_NAME}.tar.gz &&
-                docker rm -f ${CONTAINER_NAME} || true &&
-                docker run -d \
-                --name ${CONTAINER_NAME} \
-                -p ${HOST_PORT}:${CONTAINER_PORT} \
-                ${IMAGE_NAME}
+                ssh ${PROD_SERVER} '
+                    docker load < /tmp/${IMAGE_NAME}.tar.gz &&
+            	    docker rm -f ${CONTAINER_NAME} || true &&
+            	    docker run -d \
+                        --name ${CONTAINER_NAME} \
+                        -p ${HOST_PORT}:${CONTAINER_PORT} \
+                        ${IMAGE_NAME}
+                '
                 """
             }
         }
-    }
-}
