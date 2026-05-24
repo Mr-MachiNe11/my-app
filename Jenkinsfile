@@ -31,6 +31,10 @@ pipeline {
         stage('Deploy on Production VM') {
             agent { label 'prod-vm' }
 
+	    options {
+		skipDefaultCheckout()
+	    }
+
             steps {
                 sh """
                 docker load < /root/${IMAGE_NAME}.tar.gz &&
