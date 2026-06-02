@@ -1,53 +1,40 @@
 pipeline {
-    agent none
-
-    environment {
-        IMAGE_NAME = "myapp"
-        CONTAINER_NAME = "myapp-container"
-        PROD_SERVER = "root@172.20.0.199"
-        HOST_PORT = "3001"
-        CONTAINER_PORT = "3000"
-        TAR_FILE = "myapp.tar.gz"
-    }
+    agent any
 
     stages {
 
         stage('Build Docker Image') {
-            agent { label 'build-vm' }
-
             steps {
-                sh 'docker build -t ${IMAGE_NAME} .'
-                sh 'docker save ${IMAGE_NAME} | gzip > ${TAR_FILE}'
+                sh 'docker build -t myapp .'
+            }
+        }
+
+        stage('Save Docker Image') {
+            steps {
+                sh 'docker save myapp | gzip > myapp.tar.gz'
             }
         }
 
         stage('Transfer Image to Production VM') {
-            agent { label 'build-vm' }
-
             steps {
-                sh 'scp ${TAR_FILE} ${PROD_SERVER}:/tmp/'
+                sh 'scp myapp.tar.gz root@172.20.0.199:/root/'
             }
         }
 
         stage('Deploy on Production VM') {
-            agent { label 'prod-vm' }
-
-            options {
-                skipDefaultCheckout()
-            }
-
             steps {
-                sh """
-                ssh ${PROD_SERVER} '
-                    docker load < /tmp/${TAR_FILE} &&
-                    docker rm -f ${CONTAINER_NAME} || true &&
+                sh '''
+                ssh root@172.20.0.199 "
+                    docker load < /root/myapp.tar.gz &&
+                    docker rm -f myapp-container || true &&
                     docker run -d \
-                        --name ${CONTAINER_NAME} \
-                        -p ${HOST_PORT}:${CONTAINER_PORT} \
-                        ${IMAGE_NAME}
-                '
-                """
+                    --name myapp-container \
+                    -p 3001:3000 \
+                    myapp
+                "
+                '''
             }
         }
     }
 }
+
