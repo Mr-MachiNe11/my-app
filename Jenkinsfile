@@ -40,9 +40,16 @@ pipeline {
                     docker run -d \
                     --name ${CONTAINER_NAME} \
                     -p ${HOST_PORT}:${CONTAINER_PORT} \
-                    ${APP_NAME}
+                    ${APP_NAME} &&
+                    rm -f /root/${IMAGE_FILE}
                 "
                 '''
+            }
+        }
+
+        stage('Cleanup Build VM') {
+            steps {
+                sh 'rm -f ${IMAGE_FILE}'
             }
         }
     }
