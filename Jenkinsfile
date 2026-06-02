@@ -2,8 +2,7 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME = 'my-app'
-        IMAGE_NAME = 'rakib063/my-app:latest'
+        DOCKER_REPO = 'rakib063/my-app'
 
         PROD_SERVER = '172.20.0.199'
         PROD_USER = 'root'
@@ -17,7 +16,10 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t ${IMAGE_NAME} .'
+                sh '''
+                docker build -t ${DOCKER_REPO}:${BUILD_NUMBER} .
+                docker tag ${DOCKER_REPO}:${BUILD_NUMBER} ${DOCKER_REPO}:latest
+                '''
             }
         }
 
@@ -37,9 +39,12 @@ pipeline {
             }
         }
 
-        stage('Push Image to Docker Hub') {
+        stage('Push Images to Docker Hub') {
             steps {
-                sh 'docker push ${IMAGE_NAME}'
+                sh '''
+                docker push ${DOCKER_REPO}:${BUILD_NUMBER}
+                docker push ${DOCKER_REPO}:latest
+                '''
             }
         }
 
@@ -47,15 +52,25 @@ pipeline {
             steps {
                 sh """
                 ssh ${PROD_USER}@${PROD_SERVER} '
-                    docker pull ${IMAGE_NAME} &&
+                    docker pull ${DOCKER_REPO}:${BUILD_NUMBER} &&
                     docker rm -f ${CONTAINER_NAME} || true &&
                     docker run -d \
-                      --name ${CONTAINER_NAME} \
-                      -p ${HOST_PORT}:${CONTAINER_PORT} \
-                      ${IMAGE_NAME}
+                        --name ${CONTAINER_NAME} \
+                        -p ${HOST_PORT}:${CONTAINER_PORT} \
+                        ${DOCKER_REPO}:${BUILD_NUMBER} &&
+                    docker image prune -f
                 '
                 """
             }
+        }
+    }
+
+    post {
+        success {
+            echo "Deployment successful. Version: ${BUILD_NUMBER}"
+        }
+        failure {
+            echo "Deployment failed."
         }
     }
 }
