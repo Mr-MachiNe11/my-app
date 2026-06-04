@@ -1,9 +1,11 @@
 pipeline {
-
-    agent none
+    agent any
 
     environment {
         DOCKER_REPO = 'rakib063/my-app'
+
+        PROD_SERVER = '172.20.0.199'
+        PROD_USER = 'root'
 
         CONTAINER_NAME = 'myapp-container'
         HOST_PORT = '3001'
@@ -13,8 +15,6 @@ pipeline {
     stages {
 
         stage('Build Docker Image') {
-            agent { label 'built-in' }
-
             steps {
                 sh '''
                 docker build -t ${DOCKER_REPO}:${BUILD_NUMBER} .
@@ -23,9 +23,7 @@ pipeline {
             }
         }
 
-        stage('Login Docker Hub') {
-            agent { label 'built-in' }
-
+        stage('Login to Docker Hub') {
             steps {
                 withCredentials([
                     usernamePassword(
@@ -41,9 +39,7 @@ pipeline {
             }
         }
 
-        stage('Push Image') {
-            agent { label 'built-in' }
-
+        stage('Push Images to Docker Hub') {
             steps {
                 sh '''
                 docker push ${DOCKER_REPO}:${BUILD_NUMBER}
@@ -52,23 +48,29 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
-            agent { label 'prod-vm' }
-
+        stage('Deploy to Production VM') {
             steps {
-                sh '''
-                docker pull ${DOCKER_REPO}:${BUILD_NUMBER}
-
-                docker rm -f ${CONTAINER_NAME} || true
-
-                docker run -d \
-                  --name ${CONTAINER_NAME} \
-                  -p ${HOST_PORT}:${CONTAINER_PORT} \
-                  ${DOCKER_REPO}:${BUILD_NUMBER}
-
-                docker image prune -f
-                '''
+                sh """
+                ssh ${PROD_USER}@${PROD_SERVER} '
+                    docker pull ${DOCKER_REPO}:${BUILD_NUMBER} &&
+                    docker rm -f ${CONTAINER_NAME} || true &&
+                    docker run -d \
+                        --name ${CONTAINER_NAME} \
+                        -p ${HOST_PORT}:${CONTAINER_PORT} \
+                        ${DOCKER_REPO}:${BUILD_NUMBER} &&
+                    docker image prune -f
+                '
+                """
             }
+        }
+    }
+
+    post {
+        success {
+            echo "Deployment successful. Version: ${BUILD_NUMBER}"
+        }
+        failure {
+            echo "Deployment failed."
         }
     }
 }
