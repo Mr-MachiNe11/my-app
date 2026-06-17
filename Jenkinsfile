@@ -78,6 +78,10 @@ pipeline {
                 label 'prod-vm'
             }
 
+	    options {
+                skipDefaultCheckout()
+            }	
+
             steps {
 
                 sh '''
