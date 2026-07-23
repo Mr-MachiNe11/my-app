@@ -4,12 +4,15 @@ pipeline {
 
     environment {
 
-        DOCKER_REPO='rakib063/my-app'
+        IMAGE_NAME = "my-app"
 
-        CONTAINER_NAME='myapp-container'
+        CONTAINER_NAME = "myapp-container"
 
-        HOST_PORT='3001'
-        CONTAINER_PORT='3000'
+        HOST_PORT = "3001"
+        CONTAINER_PORT = "3000"
+
+        TARGET_HOST = "172.20.0.199"
+        TARGET_USER = "jenkins"
 
     }
 
@@ -23,53 +26,26 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-
                 sh '''
                 docker build \
-                -t ${DOCKER_REPO}:${BUILD_NUMBER} .
+                -t ${IMAGE_NAME}:${BUILD_NUMBER} .
 
                 docker tag \
-                ${DOCKER_REPO}:${BUILD_NUMBER} \
-                ${DOCKER_REPO}:latest
+                ${IMAGE_NAME}:${BUILD_NUMBER} \
+                ${IMAGE_NAME}:latest
                 '''
             }
         }
 
-        stage('Login Docker Hub') {
-
+        stage('Transfer Image') {
             steps {
-
-                withCredentials([
-                    usernamePassword(
-                        credentialsId:'dockerhub-creds',
-                        usernameVariable:'DOCKER_USER',
-                        passwordVariable:'DOCKER_PASS'
-                    )
-                ]) {
-
-                    sh '''
-                    echo "$DOCKER_PASS" | \
-                    docker login \
-                    -u "$DOCKER_USER" \
-                    --password-stdin
-                    '''
-                }
-
-            }
-
-        }
-
-        stage('Push Image') {
-
-            steps {
-
                 sh '''
-                docker push ${DOCKER_REPO}:${BUILD_NUMBER}
-
-                docker push ${DOCKER_REPO}:latest
+                docker save \
+                ${IMAGE_NAME}:${BUILD_NUMBER} \
+                ${IMAGE_NAME}:latest | \
+                ssh ${TARGET_USER}@${TARGET_HOST} "docker load"
                 '''
             }
-
         }
 
         stage('Deploy') {
@@ -78,21 +54,20 @@ pipeline {
                 label 'prod-vm'
             }
 
-	    options {
+            options {
                 skipDefaultCheckout()
-            }	
+            }
 
             steps {
 
                 sh '''
-                docker pull ${DOCKER_REPO}:${BUILD_NUMBER}
-
                 docker rm -f ${CONTAINER_NAME} || true
 
                 docker run -d \
                   --name ${CONTAINER_NAME} \
+                  --restart always \
                   -p ${HOST_PORT}:${CONTAINER_PORT} \
-                  ${DOCKER_REPO}:${BUILD_NUMBER}
+                  ${IMAGE_NAME}:${BUILD_NUMBER}
 
                 docker image prune -f
                 '''
